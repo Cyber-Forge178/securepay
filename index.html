@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#2563eb">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon.svg">
+<title>SecurePay Prototype</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+<div class="app">
+
+<section id="login" class="screen active">
+  <div style="margin-top:15vh" class="center">
+    <div class="logo">Secure<span>Pay</span></div>
+    <p class="muted">Secure digital payments prototype</p><p id="firebaseStatus" class="tiny"></p>
+  </div>
+  <div class="card">
+    <h2>Welcome back</h2>
+    <label>UPI ID</label><input id="loginUpi" placeholder="you@securepay">
+    <label>Phone number</label><input id="loginPhone" placeholder="10-digit number"><label>Password</label><input id="loginPassword" type="password" placeholder="Password">
+    <button class="primary" onclick="login()">Login</button>
+    <button type="button" class="secondary" style="width:100%;margin-top:10px" onclick="startInheritanceLogin()">
+      🔐 Lost old device / New device
+    </button>
+    <div class="center"><button class="link" onclick="show('register')">New user? Register</button></div>
+  </div>
+</section>
+
+<section id="register" class="screen">
+  <button class="back" onclick="show('login')">←</button>
+  <div class="logo">Create <span>account</span></div>
+  <p class="muted">Register once. Your profile is stored in the shared Firebase database, so other devices can find you.</p>
+  <label>Name</label><input id="rName" placeholder="Your name">
+  <label>Phone number</label><input id="rPhone" placeholder="10-digit number">
+  <label>UPI ID</label><input id="rUpi" placeholder="name@securepay">
+  <label>Location <span class="tiny muted">(optional if permission is unavailable)</span></label><div class="row"><input id="rLocation" placeholder="Tap Detect Location" readonly><button type="button" class="secondary" onclick="detectLocation()">📍 Detect</button></div><p id="locationStatus" class="tiny muted">You can register even if location permission is unavailable.</p>
+  <div class="card">
+    <b>Face registration — REQUIRED</b><p class="muted tiny">Open the camera and capture one clear face. Registration is blocked until face recognition succeeds.</p>
+    <video id="video" autoplay playsinline></video><canvas id="photoCanvas" class="hidden"></canvas><img id="photoPreview" class="hidden" style="width:100%;border-radius:16px;margin-top:10px" alt="Captured photo">
+    <div class="row" style="margin-top:10px"><button type="button" class="secondary" onclick="startCamera()">Open camera</button><button type="button" class="secondary" onclick="capturePhoto()">📸 Capture Face</button></div>
+    <span id="faceStatus" class="tiny"></span>
+  </div>
+  <label>Password</label><input id="rPassword" type="password" placeholder="Create a password (6+ characters)"><label>Secret message</label><input id="rSecret" type="password" placeholder="Your private recovery phrase">
+  <button class="primary" onclick="register()">Register & Continue</button>
+</section>
+
+
+
+<section id="inheritance" class="screen">
+  <div class="center" style="margin-top:5vh">
+    <div style="font-size:55px">🛡️</div>
+    <h2>INHERITANCE</h2>
+    <p class="muted">New-device recovery</p>
+  </div>
+
+  <div class="card">
+    <div class="between">
+      <b>NEW DEVICE CHALLENGE</b>
+      <span id="inheritTimer" class="badge">60s</span>
+    </div>
+    <p class="muted">
+      This device has no previous SecurePay device enrollment.
+      Verify ownership before a new device key can be trusted.
+    </p>
+  </div>
+
+  <div id="inheritFaceCard" class="card">
+    <b>1. Face verification</b>
+    <p id="inheritFaceStatus" class="muted tiny">
+      Start the camera and verify the registered user.
+    </p>
+    <video id="inheritVideo" autoplay playsinline></video>
+    <div class="grid" style="margin-top:10px">
+      <button type="button" class="secondary" onclick="startInheritanceCamera()">Open Camera</button>
+      <button type="button" class="secondary" onclick="runInheritanceFaceCheck()">Verify Face</button>
+    </div>
+  </div>
+
+  <div id="inheritSecretCard" class="card hidden">
+    <b>2. Secret message</b>
+    <p class="muted tiny">
+      Enter the secret message created during registration.
+    </p>
+    <input id="inheritSecret" type="password" placeholder="Secret message">
+    <button type="button" class="primary" onclick="verifyInheritanceSecret()">Verify & Restore Device</button>
+  </div>
+
+  <div id="inheritProgress" class="card">
+    <b>Recovery status</b>
+    <p id="inheritStatus" class="muted">Waiting for verification…</p>
+  </div>
+
+  <button type="button" class="link" onclick="cancelInheritance()">Cancel</button>
+</section>
+
+<section id="deviceVerify" class="screen">
+  <div style="margin-top:8vh" class="center">
+    <div style="font-size:55px">🛡️</div>
+    <h2>Device Security Check</h2>
+    <p class="muted">Verify the registered user before allowing payments.</p>
+  </div>
+  <div class="security-face">
+    <b>Registered face</b>
+    <p id="deviceFaceStatus" class="muted tiny">Camera verification is required on a new session.</p>
+    <video id="verifyVideo" autoplay playsinline></video>
+    <button type="button" class="secondary" style="margin-top:10px" onclick="startVerifyCamera()">Open camera</button>
+    <button type="button" class="primary" style="margin-top:10px" onclick="verifyFaceDemo()">Verify registered face</button>
+  </div>
+  <div id="secretFallback" class="card hidden">
+    <b>Face verification failed</b>
+    <p class="muted">For this prototype, use the secret message created during registration as the recovery step.</p>
+    <input id="verifySecret" type="password" placeholder="Enter your secret message">
+    <button class="primary" onclick="verifySecretFallback()">Verify Secret Message</button>
+  </div>
+  <div class="card">
+    <b>Why this blocks a stolen device</b>
+    <p class="muted tiny">The prototype checks the registered device identity and requires an additional secret if face verification does not pass. Production should use OS biometrics/passkeys for true face/biometric verification.</p>
+  </div>
+  <button class="link" onclick="logout()">Log out</button>
+</section>
+
+<!-- Continuous face-security guard (prototype): camera remains active while authenticated. -->
+<video id="guardVideo" autoplay playsinline muted style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none"></video>
+<div id="faceGuardOverlay" class="hidden" style="position:fixed;inset:0;z-index:9999;background:rgba(3,7,18,.94);display:flex;align-items:center;justify-content:center;padding:24px">
+  <div class="card" style="width:min(460px,100%);text-align:center">
+    <div style="font-size:52px">🔒</div>
+    <h2>SecurePay Locked</h2>
+    <p id="faceGuardMessage" class="muted">A different face was detected. Payment functions are locked.</p>
+    <div class="badge" style="margin:10px 0">FACE MISMATCH DETECTED</div>
+    <p class="tiny muted">Enter your private recovery message to unlock SecurePay.</p>
+    <input id="faceGuardSecret" type="password" placeholder="Enter secret message" autocomplete="off">
+    <button class="primary" style="margin-top:10px" onclick="unlockFaceGuard()">Unlock SecurePay</button>
+    <p id="faceGuardStatus" class="tiny muted" style="margin-top:10px"></p>
+    <p id="faceGuardCheckCounter" class="tiny muted">Live checks: 0</p>
+  </div>
+</div>
+
+<section id="home" class="screen">
+  <div class="between"><div class="logo">Secure<span>Pay</span></div><div><span class="badge">● Secure</span> <button class="link" onclick="logout()">Logout</button></div></div>
+  <p id="hello" class="muted"></p>
+  <div class="card" style="margin-bottom:12px">
+    <div class="between"><b>🛡 Continuous Identity Guard</b><span class="badge">LIVE</span></div>
+    <p id="faceGuardHomeStatus" class="tiny muted">Starting face monitoring...</p>
+    <p id="faceGuardCheckCounterHome" class="tiny muted">Live checks: 0</p>
+  </div>
+  <div class="balance"><small>Demo wallet balance</small><b id="balance">₹10,000</b></div>
+  <div class="card center">
+    <div class="between"><b>My Profile QR</b><span class="badge">Unique</span></div>
+    <p id="homeProfileUpi" class="muted tiny"></p>
+    <div id="homeMyQr" style="display:flex;justify-content:center;margin:12px 0"></div>
+    <p class="tiny muted">Show this QR to another SecurePay user to receive money.</p>
+  </div>
+  <div class="grid">
+    <button class="action" onclick="show('send')"><span>💸</span>Send Money</button>
+    <button class="action" onclick="show('scan')"><span>▣</span>Scan QR</button>
+    <button class="action" onclick="show('receive')"><span>↙</span>Receive</button>
+    <button class="action" onclick="show('security')"><span>🛡</span>Security</button>
+  </div>
+  <div class="card"><div class="between"><b>Recent transactions</b><button class="link" onclick="show('history')">View all</button></div><div id="recent"></div></div>
+  <div class="nav"><button onclick="show('home')">Home</button><button onclick="show('send')">Pay</button><button onclick="show('security')">Security</button></div>
+</section>
+
+<section id="send" class="screen">
+  <button class="back" onclick="show('home')">←</button><h2>Send Money</h2>
+  <p class="muted">Search registered SecurePay users.</p>
+  <input id="search" placeholder="Search by name, UPI or phone" oninput="searchUsers()">
+  <div id="users"></div>
+  <div id="payBox" class="card hidden">
+    <div class="between"><b id="selectedName"></b><span id="selectedUpi" class="muted"></span></div>
+    <label>Amount</label><input id="payAmount" type="number" min="1" placeholder="₹ Amount">
+    <button class="primary" onclick="createIntent()">Continue securely</button>
+  </div>
+</section>
+
+<section id="confirm" class="screen">
+ <button class="back" onclick="show('send')">←</button><h2>Confirm Payment</h2>
+ <div class="card center"><p class="muted">Payment intent</p><div id="confirmAmount" class="amount"></div><p id="confirmReceiver"></p><span class="badge">Intent locked</span></div>
+ <div class="card"><b>Security checks</b><p>✓ Receiver locked</p><p>✓ Amount locked</p><p>✓ Device/session bound</p><p>✓ Unique nonce generated</p><p>✓ 2-minute intent expiry</p></div>
+ <button class="primary" onclick="authenticate()">Authenticate & Pay</button>
+</section>
+
+<section id="blocked" class="screen">
+ <div style="margin-top:18vh" class="center"><div style="font-size:55px">🚨</div><h2 id="blockedTitle">Payment Blocked</h2></div>
+ <div class="alert"><b id="blockedReason">Intent mismatch</b><p id="blockText"></p><p id="blockedDetail">The QR/payment data does not match the payment intent you approved.</p></div>
+ <button class="primary" style="margin-top:15px" onclick="show('home')">Back to Home</button>
+</section>
+
+<section id="success" class="screen">
+ <div style="margin-top:15vh" class="center"><div style="font-size:60px">✓</div><h2>Payment Successful</h2><p id="successText" class="muted"></p></div>
+ <div class="card success"><b>Security verification passed</b><p>Signature verified • Fresh nonce • Intent matched</p></div>
+ <button class="primary" onclick="show('home')">Done</button>
+</section>
+
+<section id="scan" class="screen">
+  <button class="back" onclick="show('home')">←</button><h2>Secure QR Payment</h2>
+  <p class="muted">Lock the receiver and amount first. Then upload the receiver's unique SecurePay QR.</p>
+
+  <div class="card">
+    <b>1. Lock Payment Intent</b>
+    <label>Receiver UPI ID</label>
+    <input id="qrIntentUpi" placeholder="friend@securepay">
+    <label>Amount</label>
+    <input id="qrIntentAmount" type="number" min="1" placeholder="50">
+    <button class="primary" onclick="lockQRIntent()">🔒 Lock Intent</button>
+    <p id="qrIntentStatus" class="tiny muted">Nothing locked yet.</p>
+  </div>
+
+  <div id="qrUploadCard" class="card hidden">
+    <b>2. Upload Receiver QR</b>
+    <p class="muted tiny">Upload the unique QR generated on the receiver's SecurePay app.</p>
+    <input id="qrFile" type="file" accept="image/*" onchange="readUploadedQR(event)">
+    <div id="qrPreview" class="center" style="margin-top:12px"></div>
+    <p id="qrReadStatus" class="tiny muted"></p>
+    <button id="verifyQRButton" class="primary hidden" onclick="verifyQR()">🛡 Verify QR Against Locked Intent</button>
+  </div>
+
+  <div class="card">
+    <b>QR Manipulation Protection</b>
+    <p class="muted tiny">The uploaded QR must identify the exact receiver whose UPI ID was locked before scanning. The approved amount comes only from the locked intent, so changing the QR cannot change the amount.</p>
+  </div>
+</section>
+
+<section id="receive" class="screen">
+  <button class="back" onclick="show('home')">←</button><h2>Receive Money</h2>
+  <div class="card center">
+    <h3 id="myUpi"></h3>
+    <p class="muted">Your unique SecurePay QR</p>
+    <div id="myQr" style="display:flex;justify-content:center;margin:16px 0"></div>
+    <p class="tiny muted">Share this QR with the payer. It identifies your SecurePay account.</p>
+  </div>
+  <button class="primary" onclick="copyUPI()">Copy UPI ID</button>
+</section>
+
+<section id="security" class="screen">
+ <button class="back" onclick="show('home')">←</button><h2>Security Center</h2>
+ 
+<div class="card"><b>♻️ Inheritance / New Device</b>
+<p class="muted">If the old device is lost, a replacement device must complete the timed ownership challenge before a new device key is registered.</p>
+<button type="button" class="secondary" onclick="startInheritanceLogin()">Start New-Device Recovery</button></div>
+<div class="card"><b>🟢 Device binding</b><p class="muted">Registered device identity is associated with this account.</p></div>
+ <div class="card"><b>🟢 Biometric authorization</b><p class="muted">Prototype uses a confirmation step. Production should use platform biometric/passkey APIs.</p></div>
+ <div class="card"><b>🟢 QR intent protection</b><p class="muted">Amount and receiver are checked against the intended payment.</p></div>
+ <div class="card"><b>🟢 Replay protection</b><p class="muted">Each transaction gets a unique nonce and expiry.</p></div>
+ <div class="card"><b>🔐 Cryptographic authorization</b>
+<p class="muted">This prototype generates an ECDSA P-256 device key pair. The public key is stored in Firestore; the private key stays in the browser's device storage.</p>
+<div id="keyStatus" class="security-key">Loading device key status…</div></div>
+<div class="card"><b>🔁 Replay protection</b><p class="muted">Every payment receives a fresh nonce. The server checks that the nonce has not already been used and that the intent has not expired.</p></div>
+</section>
+
+<section id="history" class="screen">
+ <button class="back" onclick="show('home')">←</button><h2>Transaction History</h2><div id="historyList"></div>
+</section>
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(console.warn));
+}
+</script>
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

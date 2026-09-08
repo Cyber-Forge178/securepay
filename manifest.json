@@ -1,0 +1,11 @@
+{
+  "name": "SecurePay",
+  "short_name": "SecurePay",
+  "description": "Secure digital payments prototype",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": []
+}
